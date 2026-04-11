@@ -34,7 +34,7 @@ def check_payment_status(
     try:
         enrollment_resp = (
             supabase.table("enrollments")
-            .select("id, enrollment_ref, fee, status")
+            .select("id, enrollment_ref, status, classes(fee_mmk)")
             .eq("tenant_id", tenant_id)
             .eq("enrollment_ref", enrollment_ref)
             .execute()
@@ -50,7 +50,7 @@ def check_payment_status(
     try:
         payment_resp = (
             supabase.table("payments")
-            .select("amount, payment_method, status, verified_at, created_at")
+            .select("amount_mmk, payment_method, status, verified_at, created_at")
             .eq("tenant_id", tenant_id)
             .eq("enrollment_id", enrollment["id"])
             .execute()
@@ -59,21 +59,23 @@ def check_payment_status(
         return {"error": "I'm having trouble accessing payment information. Please try again shortly."}
 
     if not payment_resp.data:
+        fee = enrollment.get("classes", {}).get("fee_mmk") if enrollment.get("classes") else None
         return {
             "enrollment_ref": enrollment_ref,
             "enrollment_status": enrollment["status"],
-            "fee": enrollment.get("fee"),
+            "fee_mmk": fee,
             "payment": None,
             "message": "No payment record found for this enrollment.",
         }
 
+    fee = enrollment.get("classes", {}).get("fee_mmk") if enrollment.get("classes") else None
     payment = payment_resp.data[0]
     return {
         "enrollment_ref": enrollment_ref,
         "enrollment_status": enrollment["status"],
-        "fee": enrollment.get("fee"),
+        "fee_mmk": fee,
         "payment": {
-            "amount": payment.get("amount"),
+            "amount_mmk": payment.get("amount_mmk"),
             "method": payment.get("payment_method"),
             "status": payment.get("status"),
             "verified_at": payment.get("verified_at"),

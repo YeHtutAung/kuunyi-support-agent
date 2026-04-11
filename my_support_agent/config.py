@@ -26,7 +26,7 @@ def _resolve_tenant() -> None:
     response = (
         supabase.table("tenants")
         .select("id, name")
-        .eq("slug", _tenant_slug)
+        .eq("subdomain", _tenant_slug)
         .execute()
     )
 

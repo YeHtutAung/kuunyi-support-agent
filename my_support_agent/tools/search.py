@@ -40,7 +40,7 @@ def search_enrollments_by_phone(
     try:
         response = (
             supabase.table("enrollments")
-            .select("enrollment_ref, student_name, phone, status, classes(name, level)")
+            .select("enrollment_ref, student_name_en, phone, status, classes(level, fee_mmk)")
             .eq("tenant_id", tenant_id)
             .eq("phone", normalized)
             .execute()
@@ -63,7 +63,7 @@ def search_enrollments_by_phone(
     name_lower = student_name.strip().lower()
     matched = [
         row for row in response.data
-        if row.get("student_name", "").strip().lower() == name_lower
+        if row.get("student_name_en", "").strip().lower() == name_lower
     ]
 
     if not matched:
@@ -82,12 +82,12 @@ def search_enrollments_by_phone(
     for row in matched:
         enrollment = {
             "enrollment_ref": row["enrollment_ref"],
-            "student_name": row["student_name"],
+            "student_name": row["student_name_en"],
             "status": row["status"],
         }
         if row.get("classes"):
-            enrollment["class_name"] = row["classes"].get("name")
             enrollment["level"] = row["classes"].get("level")
+            enrollment["fee"] = row["classes"].get("fee_mmk")
         enrollments.append(enrollment)
 
     return {

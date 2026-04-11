@@ -35,7 +35,7 @@ def check_enrollment_status(
     try:
         response = (
             supabase.table("enrollments")
-            .select("enrollment_ref, student_name, phone, status, fee, created_at, classes(name, level)")
+            .select("enrollment_ref, student_name_en, phone, status, enrolled_at, classes(level, fee_mmk)")
             .eq("tenant_id", tenant_id)
             .eq("enrollment_ref", enrollment_ref)
             .execute()
@@ -49,13 +49,12 @@ def check_enrollment_status(
     row = response.data[0]
     result = {
         "enrollment_ref": row["enrollment_ref"],
-        "student_name": row["student_name"],
+        "student_name": row["student_name_en"],
         "status": row["status"],
-        "fee": row.get("fee"),
-        "enrolled_date": row.get("created_at"),
+        "enrolled_date": row.get("enrolled_at"),
     }
     if row.get("classes"):
-        result["class_name"] = row["classes"].get("name")
         result["level"] = row["classes"].get("level")
+        result["fee_mmk"] = row["classes"].get("fee_mmk")
 
     return result
