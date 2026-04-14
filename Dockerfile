@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["adk", "api_server", "--host", "0.0.0.0", "--port", "8000", "kuunyi_admin_agent"]
+CMD ["adk", "api_server", "--host", "0.0.0.0", "--port", "8000"]
