@@ -57,6 +57,24 @@ def init() -> None:
     _load_knowledge_base()
 
 
+def init_admin() -> None:
+    """Lightweight init for admin agent — no Supabase required.
+
+    Reads TENANT_SLUG and optionally TENANT_NAME from env, then
+    initialises the shared API client (ADMIN_API_BASE_URL + AGENT_SECRET).
+    """
+    global _tenant_slug, _tenant_name
+
+    _tenant_slug = os.environ.get("TENANT_SLUG")
+    if not _tenant_slug:
+        raise RuntimeError("TENANT_SLUG environment variable must be set.")
+
+    _tenant_name = os.environ.get("TENANT_NAME", _tenant_slug)
+
+    from my_support_agent.api_client import init_api_client
+    init_api_client()
+
+
 def get_tenant_id() -> str:
     if _tenant_id is None:
         raise RuntimeError("Config not initialized. Call config.init() first.")
