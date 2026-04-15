@@ -11,15 +11,16 @@ def init_api_client() -> None:
     """Initialize the API client. Called once at startup via init_admin()."""
     global _base_url, _secret
 
-    base_url = os.environ.get("ADMIN_API_BASE_URL", "").rstrip("/")
+    base_url = os.environ.get("API_BASE_URL", "").rstrip("/")
     secret = os.environ.get("AGENT_SECRET")
 
     if not base_url:
-        raise RuntimeError("ADMIN_API_BASE_URL environment variable must be set.")
+        raise RuntimeError("API_BASE_URL environment variable must be set.")
     if not secret:
         raise RuntimeError("AGENT_SECRET environment variable must be set.")
-    if not base_url.startswith("https://"):
-        raise RuntimeError("ADMIN_API_BASE_URL must use HTTPS.")
+    is_localhost = base_url.startswith("http://localhost") or base_url.startswith("http://127.0.0.1")
+    if not base_url.startswith("https://") and not is_localhost:
+        raise RuntimeError("API_BASE_URL must use HTTPS (http://localhost is allowed for local dev).")
 
     _base_url = base_url
     _secret = secret
@@ -47,12 +48,16 @@ def call_admin_api(
         "x-tenant-slug": tenant_slug,
     }
 
+    merged_params = {"tenant": tenant_slug}
+    if params:
+        merged_params.update(params)
+
     try:
         response = _requests.request(
             method.upper(),
             f"{_base_url}{path}",
             headers=headers,
-            params=params,
+            params=merged_params,
             json=json,
             timeout=10,
         )

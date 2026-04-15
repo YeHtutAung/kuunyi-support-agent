@@ -22,19 +22,19 @@ def _setup_client(base_url="https://example.com", secret="s3cr3t", tenant="test-
 
 def test_init_raises_if_base_url_missing():
     with patch.dict(os.environ, {"AGENT_SECRET": "s3cr3t"}, clear=True):
-        with pytest.raises(RuntimeError, match="ADMIN_API_BASE_URL"):
+        with pytest.raises(RuntimeError, match="API_BASE_URL"):
             api_client_module.init_api_client()
 
 
 def test_init_raises_if_secret_missing():
-    with patch.dict(os.environ, {"ADMIN_API_BASE_URL": "https://example.com"}, clear=True):
+    with patch.dict(os.environ, {"API_BASE_URL": "https://example.com"}, clear=True):
         with pytest.raises(RuntimeError, match="AGENT_SECRET"):
             api_client_module.init_api_client()
 
 
 def test_init_raises_if_url_not_https():
     with patch.dict(os.environ, {
-        "ADMIN_API_BASE_URL": "http://example.com",
+        "API_BASE_URL": "http://example.com",
         "AGENT_SECRET": "s3cr3t",
     }):
         with pytest.raises(RuntimeError, match="HTTPS"):
@@ -43,7 +43,7 @@ def test_init_raises_if_url_not_https():
 
 def test_init_strips_trailing_slash():
     with patch.dict(os.environ, {
-        "ADMIN_API_BASE_URL": "https://example.com/",
+        "API_BASE_URL": "https://example.com/",
         "AGENT_SECRET": "s3cr3t",
     }):
         api_client_module.init_api_client()
@@ -199,3 +199,47 @@ def test_call_sends_empty_tenant_slug_when_unset():
 
     headers = mock_req.call_args.kwargs["headers"]
     assert headers["x-tenant-slug"] == ""
+
+
+def test_init_allows_localhost_http():
+    """http://localhost should be accepted for local dev."""
+    with patch.dict(os.environ, {
+        "API_BASE_URL": "http://localhost:3005",
+        "AGENT_SECRET": "s3cr3t",
+    }):
+        api_client_module.init_api_client()
+    assert api_client_module._base_url == "http://localhost:3005"
+
+
+def test_call_injects_tenant_param():
+    """tenant query param must be injected on every request."""
+    _setup_client()
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"ok": True}
+
+    with patch("my_support_agent.api_client._requests.request", return_value=mock_resp) as mock_req:
+        with patch.dict(os.environ, {"TENANT_SLUG": "nihon-moment"}):
+            api_client_module.call_admin_api("GET", "/api/admin/stats")
+
+    call_params = mock_req.call_args.kwargs["params"]
+    assert call_params["tenant"] == "nihon-moment"
+
+
+def test_call_merges_tenant_with_existing_params():
+    """Caller-supplied params must survive alongside the injected tenant param."""
+    _setup_client()
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"data": []}
+
+    with patch("my_support_agent.api_client._requests.request", return_value=mock_resp) as mock_req:
+        with patch.dict(os.environ, {"TENANT_SLUG": "nihon-moment"}):
+            api_client_module.call_admin_api("GET", "/api/admin/students", params={"page": 2, "status": "confirmed"})
+
+    call_params = mock_req.call_args.kwargs["params"]
+    assert call_params["tenant"] == "nihon-moment"
+    assert call_params["page"] == 2
+    assert call_params["status"] == "confirmed"
