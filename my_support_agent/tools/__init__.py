@@ -13,6 +13,13 @@ from my_support_agent.tools.update_class import (
     confirm_update,
     cancel_update,
 )
+from my_support_agent.tools.student_detail import get_student_detail
+from my_support_agent.tools.payments import (
+    get_pending_payments,
+    verify_payment,
+    confirm_payment_action,
+    cancel_payment_action,
+)
 
 __all__ = [
     "search_knowledge_base",
@@ -26,4 +33,9 @@ __all__ = [
     "update_class",
     "confirm_update",
     "cancel_update",
+    "get_student_detail",
+    "get_pending_payments",
+    "verify_payment",
+    "confirm_payment_action",
+    "cancel_payment_action",
 ]
