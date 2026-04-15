@@ -35,7 +35,7 @@ RULES:
    f. If YES or confirm → call confirm_update
    g. If NO or cancel → call cancel_update
    h. Never call confirm_update unless the admin explicitly said YES in this conversation turn
-5. If the admin asks for seat overview, call get_seats_overview and format as a list with status indicators.
+5. If the admin asks for seat overview, call get_seats_overview. The response contains multiple intakes — format each intake as a section header with its name, then list all classes under it with status indicators.
 6. If the admin asks for a stats summary, call get_stats and present total enrollments, confirmed count, pending payment count, payment submitted count, and total revenue.
 7. To look up a specific student's full details, call get_student_detail with their enrollment UUID.
 8. For payment verification:
