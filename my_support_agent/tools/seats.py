@@ -1,31 +1,31 @@
 """Seats overview tool — class capacity and fill status."""
 
-from my_support_agent.config import get_tenant_id
-from my_support_agent.db import get_supabase
+from my_support_agent.api_client import call_admin_api
 
 
 def get_seats_overview() -> dict:
-    """Get seat availability across all classes for the current tenant.
+    """Get seat availability across all classes for the current open intake.
 
-    Returns each class with enrolled count, capacity, price, and a status
-    label: 'full' (seat_remaining == 0), 'critical' (>= 85% full), or
-    'available'.
+    Makes two API calls: one to find the open intake, one to list its classes.
+    Returns each class with enrolled count, capacity, price, mode, and a status
+    label: 'full' (seat_remaining == 0), 'critical' (>= 85% full), or 'available'.
     """
-    tenant_id = get_tenant_id()
-    supabase = get_supabase()
+    intakes_resp = call_admin_api("GET", "/api/intakes")
+    if "error" in intakes_resp:
+        return intakes_resp
 
-    try:
-        response = (
-            supabase.table("classes")
-            .select("id, level, seat_total, seat_remaining, fee_mmk")
-            .eq("tenant_id", tenant_id)
-            .execute()
-        )
-    except Exception as e:
-        return {"error": f"Unable to retrieve class data: {e}"}
+    open_intakes = [i for i in intakes_resp.get("data", []) if i.get("status") == "open"]
+    if not open_intakes:
+        return {"error": "No open intake found."}
+
+    intake_id = open_intakes[0]["id"]
+
+    classes_resp = call_admin_api("GET", f"/api/intakes/{intake_id}/classes")
+    if "error" in classes_resp:
+        return classes_resp
 
     classes = []
-    for row in response.data or []:
+    for row in classes_resp.get("data", []):
         seat_total = row.get("seat_total") or 0
         seat_remaining = row.get("seat_remaining") or 0
         enrolled = seat_total - seat_remaining
@@ -45,6 +45,7 @@ def get_seats_overview() -> dict:
             "seats_remaining": seat_remaining,
             "price_mmk": row.get("fee_mmk"),
             "status": status,
+            "mode": row.get("mode"),
         })
 
     return {"classes": classes, "total": len(classes)}
