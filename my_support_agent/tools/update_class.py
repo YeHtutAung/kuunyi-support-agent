@@ -1,40 +1,7 @@
-"""Admin tool to update class capacity and price with a confirmation gate."""
+"""Admin tool to update class capacity, price, or status with a confirmation gate."""
 
 from google.adk.tools import ToolContext
-from my_support_agent.config import get_tenant_id
-from my_support_agent.db import get_supabase
-
-
-def get_class_details(class_id: str) -> dict:
-    """Fetch current capacity and price for a class, scoped to the current tenant.
-
-    Args:
-        class_id: The class UUID.
-    """
-    tenant_id = get_tenant_id()
-    supabase = get_supabase()
-
-    try:
-        response = (
-            supabase.table("classes")
-            .select("id, level, seat_total, fee_mmk")
-            .eq("tenant_id", tenant_id)
-            .eq("id", class_id)
-            .execute()
-        )
-    except Exception:
-        return {"error": "Unable to retrieve class details. Please try again shortly."}
-
-    if not response.data:
-        return {"error": f"No class found with ID {class_id}."}
-
-    row = response.data[0]
-    return {
-        "class_id": row["id"],
-        "class_name": row.get("level"),
-        "capacity": row.get("seat_total"),
-        "price_mmk": row.get("fee_mmk"),
-    }
+from my_support_agent.api_client import call_admin_api
 
 
 def update_class(
@@ -42,97 +9,79 @@ def update_class(
     tool_context: ToolContext,
     capacity: int = None,
     price_mmk: int = None,
+    status: str = None,
 ) -> dict:
     """Stage a class update for admin confirmation.
 
     Does NOT write to the database. Stores the proposed change in
-    tool_context.state['pending_update'] and returns a summary for the
-    agent to show the admin before they confirm.
+    tool_context.state['pending_update'] and returns a summary for
+    the agent to show the admin before they confirm.
 
     Args:
         class_id: The class UUID to update.
-        capacity: New capacity value (optional).
+        capacity: New seat capacity (optional).
         price_mmk: New price in MMK (optional).
+        status: New class status — 'draft', 'open', 'closed' (optional).
     """
-    if capacity is None and price_mmk is None:
-        return {"error": "Provide at least one field to update: capacity or price_mmk."}
+    if capacity is None and price_mmk is None and status is None:
+        return {"error": "Provide at least one field to update: capacity, price_mmk, or status."}
 
-    current = get_class_details(class_id)
-    if "error" in current:
-        return current
-
-    pending = {
+    tool_context.state["pending_update"] = {
         "class_id": class_id,
-        "class_name": current["class_name"],
-        "current_capacity": current["capacity"],
-        "current_price": current["price_mmk"],
         "capacity": capacity,
         "price_mmk": price_mmk,
+        "status": status,
     }
-    tool_context.state["pending_update"] = pending
 
-    lines = [f"Proposed update for class **{current['class_name']}** ({class_id}):"]
+    lines = [f"Proposed update for class ID {class_id}:"]
     if capacity is not None:
-        lines.append(f"  • Capacity: {current['capacity']} → {capacity}")
+        lines.append(f"  • Capacity → {capacity}")
     if price_mmk is not None:
-        lines.append(f"  • Price: {current['price_mmk']} MMK → {price_mmk} MMK")
+        lines.append(f"  • Price → {price_mmk} MMK")
+    if status is not None:
+        lines.append(f"  • Status → {status}")
     lines.append("Reply **confirm** to apply or **cancel** to discard.")
 
     return {"confirmation_required": True, "summary": "\n".join(lines)}
 
 
 def confirm_update(tool_context: ToolContext) -> dict:
-    """Apply the staged class update to the database.
-
-    Reads pending_update from session state, executes the PATCH, then
-    clears the pending state.
-    """
+    """Apply the staged class update via the admin API."""
     pending = tool_context.state.get("pending_update")
     if not pending:
         return {"error": "No pending update to confirm."}
 
-    class_id = pending["class_id"]
-    patch: dict = {}
+    patch_body: dict = {}
     if pending.get("capacity") is not None:
-        patch["seat_total"] = pending["capacity"]
+        patch_body["seat_total"] = pending["capacity"]
     if pending.get("price_mmk") is not None:
-        patch["fee_mmk"] = pending["price_mmk"]
+        patch_body["fee_mmk"] = pending["price_mmk"]
+    if pending.get("status") is not None:
+        patch_body["status"] = pending["status"]
 
-    if not patch:
+    if not patch_body:
         tool_context.state["pending_update"] = None
-        return {"error": "Pending update had no fields to apply."}
+        return {"error": "No fields to apply."}
 
-    tenant_id = get_tenant_id()
-    supabase = get_supabase()
-
-    try:
-        response = (
-            supabase.table("classes")
-            .update(patch)
-            .eq("tenant_id", tenant_id)
-            .eq("id", class_id)
-            .execute()
-        )
-    except Exception:
-        return {"error": "Failed to apply update. Please try again shortly."}
-
-    if not response.data:
-        return {"error": "Update failed — class not found or no rows affected."}
-
+    result = call_admin_api("PATCH", f"/api/classes/{pending['class_id']}", json=patch_body)
     tool_context.state["pending_update"] = None
 
+    if "error" in result:
+        return result
+
     applied = []
-    if "seat_total" in patch:
-        applied.append(f"capacity → {patch['seat_total']}")
-    if "fee_mmk" in patch:
-        applied.append(f"price → {patch['fee_mmk']} MMK")
+    if "seat_total" in patch_body:
+        applied.append(f"capacity → {patch_body['seat_total']}")
+    if "fee_mmk" in patch_body:
+        applied.append(f"price → {patch_body['fee_mmk']} MMK")
+    if "status" in patch_body:
+        applied.append(f"status → {patch_body['status']}")
 
     return {
         "success": True,
-        "class_id": class_id,
-        "class_name": pending.get("class_name"),
+        "class_id": pending["class_id"],
         "updated": applied,
-        "message": f"Class '{pending.get('class_name')}' updated successfully: {', '.join(applied)}.",
+        "message": f"Class updated successfully: {', '.join(applied)}.",
     }
 
 
@@ -143,8 +92,7 @@ def cancel_update(tool_context: ToolContext) -> dict:
         return {"message": "No pending update to cancel."}
 
     tool_context.state["pending_update"] = None
-
     return {
         "cancelled": True,
-        "message": f"Update for class '{pending.get('class_name')}' has been cancelled. No changes were made.",
+        "message": f"Update for class {pending.get('class_id')} has been cancelled. No changes were made.",
     }

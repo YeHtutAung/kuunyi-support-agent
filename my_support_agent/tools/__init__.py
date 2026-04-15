@@ -9,7 +9,6 @@ from my_support_agent.tools.seats import get_seats_overview
 from my_support_agent.tools.summary import get_stats
 from my_support_agent.tools.admin_enrollments import list_enrollments
 from my_support_agent.tools.update_class import (
-    get_class_details,
     update_class,
     confirm_update,
     cancel_update,
@@ -24,7 +23,6 @@ __all__ = [
     "get_seats_overview",
     "get_stats",
     "list_enrollments",
-    "get_class_details",
     "update_class",
     "confirm_update",
     "cancel_update",
