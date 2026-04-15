@@ -68,7 +68,10 @@ def call_admin_api(
     if not response.ok:
         return {"error": f"API request failed: {response.status_code}."}
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return {"error": "API returned an unexpected response format."}
     if isinstance(data, list):
         return {"data": data}
     return data

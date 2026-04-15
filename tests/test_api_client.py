@@ -6,10 +6,14 @@ from unittest.mock import MagicMock, patch
 import my_support_agent.api_client as api_client_module
 
 
-def _reset():
-    """Reset module-level state between tests."""
-    api_client_module._base_url = None
-    api_client_module._secret = None
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def _setup_client(base_url="https://example.com", secret="s3cr3t", tenant="test-tenant"):
+    api_client_module._base_url = base_url
+    api_client_module._secret = secret
+    return tenant
 
 
 # ---------------------------------------------------------------------------
@@ -17,23 +21,18 @@ def _reset():
 # ---------------------------------------------------------------------------
 
 def test_init_raises_if_base_url_missing():
-    _reset()
-    with patch.dict(os.environ, {"AGENT_SECRET": "s3cr3t"}, clear=False):
-        os.environ.pop("ADMIN_API_BASE_URL", None)
+    with patch.dict(os.environ, {"AGENT_SECRET": "s3cr3t"}, clear=True):
         with pytest.raises(RuntimeError, match="ADMIN_API_BASE_URL"):
             api_client_module.init_api_client()
 
 
 def test_init_raises_if_secret_missing():
-    _reset()
-    with patch.dict(os.environ, {"ADMIN_API_BASE_URL": "https://example.com"}, clear=False):
-        os.environ.pop("AGENT_SECRET", None)
+    with patch.dict(os.environ, {"ADMIN_API_BASE_URL": "https://example.com"}, clear=True):
         with pytest.raises(RuntimeError, match="AGENT_SECRET"):
             api_client_module.init_api_client()
 
 
 def test_init_raises_if_url_not_https():
-    _reset()
     with patch.dict(os.environ, {
         "ADMIN_API_BASE_URL": "http://example.com",
         "AGENT_SECRET": "s3cr3t",
@@ -43,7 +42,6 @@ def test_init_raises_if_url_not_https():
 
 
 def test_init_strips_trailing_slash():
-    _reset()
     with patch.dict(os.environ, {
         "ADMIN_API_BASE_URL": "https://example.com/",
         "AGENT_SECRET": "s3cr3t",
@@ -55,13 +53,6 @@ def test_init_strips_trailing_slash():
 # ---------------------------------------------------------------------------
 # call_admin_api
 # ---------------------------------------------------------------------------
-
-def _setup_client(base_url="https://example.com", secret="s3cr3t", tenant="test-tenant"):
-    _reset()
-    api_client_module._base_url = base_url
-    api_client_module._secret = secret
-    return tenant
-
 
 def test_call_injects_auth_headers():
     _setup_client()
@@ -178,3 +169,33 @@ def test_secret_not_in_error_message():
         with patch.dict(os.environ, {"TENANT_SLUG": "nihon-moment"}):
             result = api_client_module.call_admin_api("GET", "/api/admin/stats")
     assert "super-secret-value" not in result.get("error", "")
+
+
+def test_call_returns_error_on_malformed_json():
+    _setup_client()
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.status_code = 200
+    mock_resp.json.side_effect = ValueError("No JSON object could be decoded")
+
+    with patch("my_support_agent.api_client._requests.request", return_value=mock_resp):
+        with patch.dict(os.environ, {"TENANT_SLUG": "nihon-moment"}):
+            result = api_client_module.call_admin_api("GET", "/api/admin/stats")
+
+    assert result == {"error": "API returned an unexpected response format."}
+
+
+def test_call_sends_empty_tenant_slug_when_unset():
+    _setup_client()
+    mock_resp = MagicMock()
+    mock_resp.ok = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"ok": True}
+
+    env_without_tenant = {k: v for k, v in os.environ.items() if k != "TENANT_SLUG"}
+    with patch("my_support_agent.api_client._requests.request", return_value=mock_resp) as mock_req:
+        with patch.dict(os.environ, env_without_tenant, clear=True):
+            api_client_module.call_admin_api("GET", "/api/admin/stats")
+
+    headers = mock_req.call_args.kwargs["headers"]
+    assert headers["x-tenant-slug"] == ""
