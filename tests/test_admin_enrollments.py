@@ -1,6 +1,7 @@
 """Tests for list_enrollments (API-backed)."""
 
-from unittest.mock import patch, call
+from unittest.mock import patch
+from my_support_agent.tools.admin_enrollments import list_enrollments
 
 
 ENROLLMENTS_RESPONSE = {
@@ -25,7 +26,6 @@ ENROLLMENTS_RESPONSE = {
 def test_no_filters_calls_with_defaults():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE) as mock_api:
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         list_enrollments()
     mock_api.assert_called_once_with(
         "GET", "/api/admin/students", params={"page": 1, "page_size": 20}
@@ -35,7 +35,6 @@ def test_no_filters_calls_with_defaults():
 def test_status_filter_included_in_params():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE) as mock_api:
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         list_enrollments(status="confirmed")
     params = mock_api.call_args.kwargs["params"]
     assert params["status"] == "confirmed"
@@ -44,7 +43,6 @@ def test_status_filter_included_in_params():
 def test_search_filter_included_in_params():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE) as mock_api:
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         list_enrollments(search="Mg Mg")
     params = mock_api.call_args.kwargs["params"]
     assert params["search"] == "Mg Mg"
@@ -53,7 +51,6 @@ def test_search_filter_included_in_params():
 def test_page_param_forwarded():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE) as mock_api:
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         list_enrollments(page=3)
     params = mock_api.call_args.kwargs["params"]
     assert params["page"] == 3
@@ -62,7 +59,6 @@ def test_page_param_forwarded():
 def test_no_status_not_in_params():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE) as mock_api:
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         list_enrollments()
     params = mock_api.call_args.kwargs["params"]
     assert "status" not in params
@@ -72,7 +68,6 @@ def test_no_status_not_in_params():
 def test_returns_api_response():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value=ENROLLMENTS_RESPONSE):
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         result = list_enrollments()
     assert result["total"] == 1
     assert result["data"][0]["student_name_en"] == "Mg Mg"
@@ -81,6 +76,5 @@ def test_returns_api_response():
 def test_forwards_api_error():
     with patch("my_support_agent.tools.admin_enrollments.call_admin_api",
                return_value={"error": "Authentication failed."}):
-        from my_support_agent.tools.admin_enrollments import list_enrollments
         result = list_enrollments()
     assert "error" in result

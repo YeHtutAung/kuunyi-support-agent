@@ -145,6 +145,7 @@ def test_confirm_update_forwards_api_error():
         from my_support_agent.tools.update_class import confirm_update
         result = confirm_update(ctx)
     assert "error" in result
+    assert ctx.state.get("pending_update") is not None  # state preserved so admin can retry
 
 
 # ---------------------------------------------------------------------------

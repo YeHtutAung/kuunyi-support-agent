@@ -64,10 +64,11 @@ def confirm_update(tool_context: ToolContext) -> dict:
         return {"error": "No fields to apply."}
 
     result = call_admin_api("PATCH", f"/api/classes/{pending['class_id']}", json=patch_body)
-    tool_context.state["pending_update"] = None
 
     if "error" in result:
-        return result
+        return result   # preserve pending_update so admin can retry
+
+    tool_context.state["pending_update"] = None
 
     applied = []
     if "seat_total" in patch_body:

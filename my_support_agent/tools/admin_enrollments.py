@@ -17,9 +17,9 @@ def list_enrollments(
         page: Page number, 1-based (default 1). Page size is fixed at 20.
     """
     params: dict = {"page": page, "page_size": 20}
-    if status:
+    if status is not None:
         params["status"] = status
-    if search:
+    if search is not None:
         params["search"] = search
 
     return call_admin_api("GET", "/api/admin/students", params=params)
