@@ -6,3 +6,4 @@ __pycache__/
 .adk/
 pytest_out.txt
 .claude/
+.worktrees/
